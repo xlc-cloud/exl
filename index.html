@@ -352,14 +352,9 @@
             }
         }
         
-        // 格式化身份证号码（隐藏部分数字）
         function formatIdCard(idCard) {
-            if (!idCard) return '';
-            
-            // 保留前6位和后4位，中间用*替换
-            if (idCard.length > 10) {
-                return idCard.substring(0, 6) + '********' + idCard.substring(idCard.length - 4);
-            }
+            return idCard || '';
+        }
             
             return idCard;
         }
