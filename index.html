@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>学生信息查询系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#165DFF',
+                        secondary: '#6B7280',
+                        accent: '#3B82F6',
+                        neutral: '#F3F4F6',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .shadow-soft {
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            }
+            .transition-all-300 {
+                transition: all 300ms ease-in-out;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col">
+    <header class="bg-white shadow-sm sticky top-0 z-10">
+        <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <h1 class="text-2xl font-bold text-gray-800 flex items-center">
+                <i class="fa fa-search text-primary mr-2"></i>
+                学生信息查询系统
+            </h1>
+            <span class="text-sm text-gray-500 hidden sm:inline">实时查询学生信息</span>
+        </div>
+    </header>
+
+    <main class="flex-grow container mx-auto px-4 py-8">
+        <div class="max-w-4xl mx-auto">
+            <!-- 搜索区域 -->
+            <div id="search-area" class="bg-white rounded-xl shadow-soft p-6 mb-8">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-800 mb-1">
+                            <i class="fa fa-database text-primary mr-2"></i>
+                            学生信息库
+                        </h3>
+                        <p class="text-sm text-gray-500">
+                            <span id="record-count">0</span> 条记录
+                        </p>
+                    </div>
+                    <button id="reset-btn" class="text-gray-400 hover:text-gray-600 transition-all-300">
+                        <i class="fa fa-refresh"></i>
+                    </button>
+                </div>
+                
+                <!-- 搜索表单 -->
+                <div class="mt-6">
+                    <h4 class="text-base font-medium text-gray-700 mb-4">输入查询信息</h4>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="query-field" class="block text-sm font-medium text-gray-700 mb-1">查询字段</label>
+                            <div class="relative">
+                                <select id="query-field" class="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md bg-white">
+                                    <option value="class">班级</option>
+                                    <option value="name">姓名</option>
+                                    <option value="idCard">身份证</option>
+                                    <option value="contact">联系方式</option>
+                                </select>
+                                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                                    <i class="fa fa-chevron-down text-xs"></i>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label for="query-value" class="block text-sm font-medium text-gray-700 mb-1">查询内容</label>
+                            <div class="relative">
+                                <input type="text" id="query-value" class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm" placeholder="输入要查询的内容">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <i class="fa fa-search text-gray-400"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 搜索结果 -->
+                <div id="search-results" class="mt-8 hidden">
+                    <div class="flex justify-between items-center mb-4">
+                        <h4 class="text-base font-medium text-gray-700">搜索结果</h4>
+                        <span id="result-count" class="text-sm text-gray-500">0 条结果</span>
+                    </div>
+                    
+                    <div class="overflow-x-auto shadow-inner rounded-lg">
+                        <table id="results-table" class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">班级</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">姓名</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">身份证</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">联系方式</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200" id="results-body">
+                                <!-- 结果将动态填充 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- 无结果状态 -->
+                <div id="no-results" class="mt-8 hidden bg-gray-50 rounded-lg p-6 text-center">
+                    <i class="fa fa-search-minus text-3xl text-gray-300 mb-2"></i>
+                    <p class="text-gray-500">未找到匹配的记录</p>
+                </div>
+                
+                <!-- 加载状态 -->
+                <div id="loading" class="mt-8 hidden bg-gray-50 rounded-lg p-6 text-center">
+                    <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-primary border-t-transparent mb-2"></div>
+                    <p class="text-gray-500">正在搜索...</p>
+                </div>
+            </div>
+            
+            <!-- 初始化加载状态 -->
+            <div id="initial-loading" class="bg-white rounded-xl shadow-soft p-12 text-center">
+                <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent mb-4"></div>
+                <h3 class="text-xl font-semibold text-gray-700">正在加载学生数据...</h3>
+                <p class="text-gray-500 mt-2">请稍候，这可能需要几秒钟时间</p>
+            </div>
+            
+            <!-- 错误状态 -->
+            <div id="error" class="hidden bg-white rounded-xl shadow-soft p-8">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <i class="fa fa-exclamation-circle text-2xl text-red-500"></i>
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-lg leading-6 font-medium text-red-800">加载数据时出错</h3>
+                        <div class="mt-2 text-sm text-red-700">
+                            <p id="error-message">无法加载学生数据，请确保文件路径正确。</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <button id="retry-btn" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all-300">
+                        <i class="fa fa-refresh mr-2"></i>
+                        重试
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="bg-white border-t border-gray-200 py-6">
+        <div class="container mx-auto px-4">
+            <div class="flex justify-center">
+                <p class="text-sm text-gray-500">© 2025 学生信息查询系统</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // DOM 元素
+        const queryField = document.getElementById('query-field');
+        const queryValue = document.getElementById('query-value');
+        const searchResults = document.getElementById('search-results');
+        const resultsTable = document.getElementById('results-table');
+        const resultsBody = document.getElementById('results-body');
+        const resultCount = document.getElementById('result-count');
+        const noResults = document.getElementById('no-results');
+        const initialLoading = document.getElementById('initial-loading');
+        const loading = document.getElementById('loading');
+        const error = document.getElementById('error');
+        const errorMessage = document.getElementById('error-message');
+        const resetBtn = document.getElementById('reset-btn');
+        const retryBtn = document.getElementById('retry-btn');
+        const recordCount = document.getElementById('record-count');
+        
+        // 学生数据
+        let studentData = [];
+        let searchTimeout = null;
+        
+        // 初始化
+        function init() {
+            // 加载学生数据
+            loadStudentData();
+            
+            // 搜索输入事件
+            queryValue.addEventListener('input', debounce(handleSearch, 300));
+            queryField.addEventListener('change', debounce(handleSearch, 300));
+            
+            // 重置按钮
+            resetBtn.addEventListener('click', resetSearch);
+            
+            // 重试按钮
+            retryBtn.addEventListener('click', loadStudentData);
+        }
+        
+        // 防抖函数
+        function debounce(func, delay) {
+            return function() {
+                const context = this;
+                const args = arguments;
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => func.apply(context, args), delay);
+            };
+        }
+        
+        // 加载学生数据
+        function loadStudentData() {
+            initialLoading.classList.remove('hidden');
+            error.classList.add('hidden');
+            searchResults.classList.add('hidden');
+            noResults.classList.add('hidden');
+            
+            // 从指定路径加载Excel文件
+            const filePath = 'exl/学生信息.xlsx';
+            
+            const xhr = new XMLHttpRequest();
+            xhr.open('GET', filePath, true);
+            xhr.responseType = 'arraybuffer';
+            
+            xhr.onload = function(e) {
+                if (this.status === 200) {
+                    try {
+                        const data = new Uint8Array(this.response);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        
+                        // 处理Excel数据
+                        processExcelData(workbook);
+                    } catch (error) {
+                        console.error('Error parsing file:', error);
+                        showError('无法解析文件内容，请确保文件格式正确。');
+                    }
+                } else {
+                    showError(`加载文件失败，状态码: ${this.status}`);
+                }
+            };
+            
+            xhr.onerror = function() {
+                showError('加载文件时发生网络错误。');
+            };
+            
+            xhr.send();
+        }
+        
+        // 处理Excel数据
+        function processExcelData(workbook) {
+            // 获取第一个工作表
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            
+            // 将工作表转换为 JSON，根据列索引映射字段
+            studentData = XLSX.utils.sheet_to_json(worksheet, { 
+                header: 1,  // 使用数字索引作为键
+                raw: false
+            });
+            
+            // 移除标题行（如果存在）
+            if (studentData.length > 0) {
+                // 重新映射列索引到对应的字段
+                studentData = studentData.slice(1).map(row => ({
+                    class: row[0] || '',       // 第一列：班级
+                    name: row[1] || '',        // 第二列：姓名
+                    idCard: row[3] || '',      // 第四列：身份证
+                    contact: row[4] || ''      // 第五列：联系方式
+                }));
+            }
+            
+            // 更新记录计数
+            recordCount.textContent = studentData.length;
+            
+            // 隐藏加载状态
+            initialLoading.classList.add('hidden');
+            
+            // 自动触发一次搜索
+            handleSearch();
+        }
+        
+        // 处理搜索
+        function handleSearch() {
+            const field = queryField.value;
+            const value = queryValue.value.trim().toLowerCase();
+            
+            // 显示加载状态
+            loading.classList.remove('hidden');
+            searchResults.classList.add('hidden');
+            noResults.classList.add('hidden');
+            
+            // 延迟执行搜索，提高性能
+            setTimeout(() => {
+                // 执行搜索
+                const results = studentData.filter(student => {
+                    const fieldValue = student[field]?.toString().toLowerCase() || '';
+                    return fieldValue.includes(value);
+                });
+                
+                // 显示搜索结果
+                displaySearchResults(results);
+                
+                // 隐藏加载状态
+                loading.classList.add('hidden');
+            }, 200);
+        }
+        
+        // 显示搜索结果
+        function displaySearchResults(results) {
+            // 清空结果表
+            resultsBody.innerHTML = '';
+            
+            if (results.length > 0) {
+                // 有结果
+                results.forEach(student => {
+                    const row = document.createElement('tr');
+                    row.className = 'hover:bg-gray-50 transition-all-300';
+                    
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${student.class || ''}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${student.name || ''}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatIdCard(student.idCard) || ''}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${student.contact || ''}</td>
+                    `;
+                    
+                    resultsBody.appendChild(row);
+                });
+                
+                searchResults.classList.remove('hidden');
+                noResults.classList.add('hidden');
+                resultCount.textContent = `${results.length} 条结果`;
+            } else {
+                // 无结果
+                searchResults.classList.add('hidden');
+                noResults.classList.remove('hidden');
+            }
+        }
+        
+        // 格式化身份证号码（隐藏部分数字）
+        function formatIdCard(idCard) {
+            if (!idCard) return '';
+            
+            // 保留前6位和后4位，中间用*替换
+            if (idCard.length > 10) {
+                return idCard.substring(0, 6) + '********' + idCard.substring(idCard.length - 4);
+            }
+            
+            return idCard;
+        }
+        
+        // 重置搜索
+        function resetSearch() {
+            queryValue.value = '';
+            handleSearch();
+        }
+        
+        // 显示错误
+        function showError(message) {
+            errorMessage.textContent = message;
+            error.classList.remove('hidden');
+            initialLoading.classList.add('hidden');
+        }
+        
+        // 初始化应用
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>    
